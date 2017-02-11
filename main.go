@@ -11,32 +11,48 @@ import (
 )
 
 type Payload struct {
-	Channel   string `json:"channel"`
-	Username  string `json:"username"`
-	Text      string `json:"text"`
-	IconEmoji string `json:"icon_emoji"`
+	Channel     string       `json:"channel"`
+	Username    string       `json:"username"`
+	Text        string       `json:"text"`
+	IconEmoji   string       `json:"icon_emoji"`
+	Attachments []Attachment `json:"attachments"`
+}
+
+type Attachment struct {
+	Fallback string `json:"fallback"`
+	Title    string `json:"title"`
+	Text     string `json:"text"`
+	Color    string `json:"color"`
 }
 
 func main() {
-	username := "Zabbix"
 	to := os.Args[1]
 	subj := os.Args[2]
 	msg := os.Args[3]
-	text := fmt.Sprintf("*%s:*\n%s", subj, msg)
 
 	r := regexp.MustCompile(`^RECOVER(Y|ED)?$`)
 	emoji := ":ghost:"
+	color := "warning"
 	if r.MatchString(subj) {
 		emoji = ":smile:"
+		color = "good"
 	} else if subj == "PROBLEM" {
 		emoji = ":frowning:"
+		color = "danger"
 	}
 
 	jsonBytes, err := json.Marshal(Payload{
 		Channel:   to,
-		Username:  username,
-		Text:      text,
+		Username:  "Zabbix",
 		IconEmoji: emoji,
+		Attachments: []Attachment{
+			{
+				Fallback: fmt.Sprintf("%s: %s", subj, msg),
+				Color:    color,
+				Title:    subj,
+				Text:     msg,
+			},
+		},
 	})
 	if err != nil {
 		panic(err)
