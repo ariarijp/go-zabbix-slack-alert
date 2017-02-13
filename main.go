@@ -4,16 +4,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
-	"regexp"
+	"strings"
 	"time"
 )
 
 type Payload struct {
 	Channel     string       `json:"channel"`
 	Username    string       `json:"username"`
-	Text        string       `json:"text"`
 	IconEmoji   string       `json:"icon_emoji"`
 	Attachments []Attachment `json:"attachments"`
 }
@@ -23,25 +23,43 @@ type Attachment struct {
 	Title    string `json:"title"`
 	Text     string `json:"text"`
 	Color    string `json:"color"`
+	Footer   string `json:"footer"`
+	Ts       int64  `json:"ts"`
 }
 
 func main() {
+	usage := "Usage: SLACK_WEBHOOK_URL=\"YOUR_WEBHOOK_URL\" go-zabbix-slack-alert <CHANNEL> <SUBJECT> <MESSAGE>"
+	emoji := ":ghost:"
+	color := "warning"
+	timeout := 5 * time.Second
+
+	if len(os.Args) != 4 {
+		log.Fatal(usage)
+	}
 	to := os.Args[1]
 	subj := os.Args[2]
 	msg := os.Args[3]
+	url := os.Getenv("SLACK_WEBHOOK_URL")
 
-	r := regexp.MustCompile(`^RECOVER(Y|ED)?$`)
-	emoji := ":ghost:"
-	color := "warning"
-	if r.MatchString(subj) {
+	if url == "" {
+		log.Fatal(usage)
+	} else if to == "" {
+		log.Fatal(usage)
+	} else if subj == "" {
+		log.Fatal(usage)
+	} else if msg == "" {
+		log.Fatal(usage)
+	}
+
+	if strings.Contains(subj, "OK:") {
 		emoji = ":smile:"
 		color = "good"
-	} else if subj == "PROBLEM" {
+	} else if strings.Contains(subj, "PROBLEM:") {
 		emoji = ":frowning:"
 		color = "danger"
 	}
 
-	jsonBytes, err := json.Marshal(Payload{
+	payload := Payload{
 		Channel:   to,
 		Username:  "Zabbix",
 		IconEmoji: emoji,
@@ -51,26 +69,28 @@ func main() {
 				Color:    color,
 				Title:    subj,
 				Text:     msg,
+				Footer:   "go-zabbix-slack-alert",
+				Ts:       time.Now().Unix(),
 			},
 		},
-	})
+	}
+	jsonBytes, err := json.Marshal(payload)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	url := os.Getenv("SLACK_WEBHOOK_URL")
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBytes))
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{
-		Timeout: 5 * time.Second,
+		Timeout: timeout,
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	defer resp.Body.Close()
 }
